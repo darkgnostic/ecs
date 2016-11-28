@@ -2,18 +2,16 @@
 
 #include <string>
 #include <iostream>
+#include <list>
 #include <map>
 #include <vector>
 #include <memory>
 #include <typeinfo>
 
-#define STL_TYPE
 #define CFID_UNKNOWN 0
 #undef IN
 #define IN const
 #define OUT
-#define API_PROFILER(a) 
-#define USE_SMART_POINTERS
 
 typedef unsigned int	family_t;
 typedef unsigned int	entity_t;
@@ -36,11 +34,7 @@ typedef std::vector< ComponentPtr >				component_vector;
 typedef std::map< entity_t, component_vector >	component_map;
 
 template<typename Type> inline Type smart_cast( ComponentPtr ptr ) { 
-#if defined USE_SMART_POINTERS
 	return static_cast<Type>(ptr.get()); 
-#else
-	return (Type)(ptr); 
-#endif
 }
 
 template<typename Type> inline Type safe_cast( ComponentPtr ptr ) { 
@@ -50,10 +44,6 @@ template<typename Type> inline Type safe_cast( ComponentPtr ptr ) {
 	return NULL;
 }
 inline bool type_of( ComponentPtr ptr, family_t familyId ) { return ptr->mFamilyId == familyId; }
-
-// ENntity system
-
-#include <list>
 
 typedef std::vector< entity_t >	entity_array;
 typedef std::list< entity_t >	entity_list;
@@ -197,7 +187,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// <summary>	Component system. Class for handling component, and their memory management.  </summary>
-/// <remarks>	Isidor Hodi, 12/17/2012. </remarks>
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class ComponentSystem {
@@ -209,9 +198,7 @@ private:
 	/// <summary>	List of erased unique identifiers. </summary>
 	entity_list	mErasedIds;
 
-	// for faster fetching data based on entity ID and on family ID
-	// ComonentPtr = 8 bytes, so its not so big overhead
-
+	// used for faster fetching data based on entity ID and on family ID
 	std::vector< component_vector > mEntityComponentArray;
 	//component_map mEntityComponentMap;
 	component_map mFamilyComponentMap;
@@ -219,23 +206,17 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Default constructor. </summary>
-	/// <remarks>	Isidor Hodi, 12/17/2012. </remarks>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	ComponentSystem() {
 		mComponentArray.push_back( ComponentPtr() );
 
 		/// <summary>	The dummy component. Used for return values. Similar to smart NULL. </summary>
-#if defined USE_SMART_POINTERS
 		mComponentArray[0].reset();
-#else
-		mComponentArray[0] = NULL;
-#endif
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Destructor. </summary>
-	/// <remarks>	Isidor Hodi, 12/17/2012. </remarks>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	~ComponentSystem() {
@@ -247,12 +228,8 @@ public:
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
-	/// <summary>	Creates new entity under specific identifier. Currentlly used for loading. </summary>
-	/// 
-	/// <remarks>	Isidor Hodi, 1/11/2013. </remarks>
-	/// 
+	/// <summary>	Creates new entity under specific identifier. Currently used for loading. </summary>
 	/// <param name="entityId">	Identifier for the entity. </param>
-	/// 
 	/// <returns>	The new new entity under identifier. </returns>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -263,26 +240,22 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	
-	/// 		Attaches the given new component to component system. If there was a previously deleted
+	/// 		Attaches new given component to component system. If there was a previously deleted
 	/// 		object, deleted objects space will be reused, and deleted object's unique Id attached to 
 	/// 		newly created component.
 	/// </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/16/2012. </remarks>
-	///
 	/// <param name="newComponent">	[in] If non-null, the new component. </param>
-	///
 	/// <returns>	Attached component. </returns>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	template<typename Type>	ComponentPtr CreateComponent( IN entity_t entityId ) {
 
-		API_PROFILER(CreateComponent);
 		// do we have erased components?
 		if( mErasedIds.empty() )
 		{
 			Type* newComponent = new Type;
-			// no. put new component into system
+			
+			// no. put new component into the system
 			newComponent->mEntityId	= entityId;
 			mComponentArray.push_back( ComponentPtr( newComponent ) );
 
@@ -292,7 +265,6 @@ public:
 			if( entityId >= mEntityComponentArray.size() )
 				mEntityComponentArray.resize( entityId + 1 );
 
-			//mEntityComponentMap[ entityId ].push_back( mComponentArray.back() );
 			mEntityComponentArray[ entityId ].push_back( mComponentArray.back() );
 			mFamilyComponentMap[ newComponent->mFamilyId ].push_back( mComponentArray.back() );
 			return mComponentArray.back();
@@ -307,51 +279,25 @@ public:
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
-	/// <summary>	Attach componnent. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/25/2012. </remarks>
-	///
+	/// <summary>	Attach the component. </summary>
 	/// <param name="component">	The component. </param>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	inline bool AttachComponent( IN ComponentPtr& component )
 	{
-		API_PROFILER(AttachComponent);
-		//if( component.use_count() == 1 )
-		{
-			/*if( mErasedIds.empty() )
-			{
-			component->mUniqueId = mLastUnqiueId++;
-			}
-			else
-			{
-			entity_t erasedId = mErasedIds.front();
-			mErasedIds.pop_front();
+		mComponentArray.push_back( component );
 
-			component->mUniqueId = erasedId;
-			}*/
+		if( component->mEntityId >= mEntityComponentArray.size() )
+			mEntityComponentArray.resize( component->mEntityId + 1 );
 
-			mComponentArray.push_back( component );
-
-			if( component->mEntityId >= mEntityComponentArray.size() )
-				mEntityComponentArray.resize( component->mEntityId + 1 );
-
-			//mEntityComponentMap[ component->mEntityId ].push_back( component );
-			mEntityComponentArray[ component->mEntityId ].push_back( component );
-			mFamilyComponentMap[ component->mFamilyId ].push_back( component );
-			return true;
-		}
-
-		//return false;
+		mEntityComponentArray[ component->mEntityId ].push_back( component );
+		mFamilyComponentMap[ component->mFamilyId ].push_back( component );
+		return true;
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Attach array of components. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/26/2012. </remarks>
-	///
 	/// <param name="componentArray">	Array of components. </param>
-	///
 	/// <returns>	true if it succeeds, false if it fails. </returns>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -374,11 +320,7 @@ public:
 	///					->	MultiAttach<Vertex>				( new Vertex )
 	///					->	MultiAttach<UV>					( new UV );
 	/// </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/16/2012. </remarks>
-	///
 	/// <param name="newComponent">	[in] If non-null, the new component. </param>
-	///
 	/// <returns>	This instance. </returns>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -395,9 +337,6 @@ public:
 	/// 	Multiple ownerships need to be handled, and components from component system's outer
 	/// 	scope need to be erased first for this method to succeed.
 	/// </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/16/2012. </remarks>
-	///
 	/// <typeparam name="typename Type">	Type of the typename type. </typeparam>
 	/// <param name="uniqueId">	Unique identifier. </param>
 	/// <param name="entityId">	Identifier for the entity. </param>
@@ -408,7 +347,6 @@ public:
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	template<typename Type>	ComponentPtr Replace( IN cid_t uniqueId, IN entity_t entityId ) {
-		API_PROFILER(Replace);
 		// only allow delete of the pointer in case there is no instance of object	
 		if( RefCount( uniqueId ) == 0 )
 		{
@@ -427,7 +365,6 @@ public:
 			if( entityId >= mEntityComponentArray.size() )
 				mEntityComponentArray.resize( entityId + 1 );
 
-			//mEntityComponentMap[ entityId ].push_back( mComponentArray[ uniqueId ] );
 			mEntityComponentArray[ entityId ].push_back( mComponentArray[ uniqueId ] );
 			mFamilyComponentMap[ newComponent->mFamilyId ].push_back( mComponentArray[ uniqueId ] );
 
@@ -444,9 +381,6 @@ public:
 	/// 	Multiple ownerships need to be handled, and components from component system's outer scope need to
 	/// 	be released first for this method to succeed.
 	/// </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/16/2012. </remarks>
-	///
 	/// <param name="uniqueId">	Unique identifier. </param>
 	///
 	/// <returns>	true if it succeeds, false if it fails. </returns>
@@ -454,7 +388,6 @@ public:
 
 	bool Release( IN cid_t uniqueId )
 	{
-		API_PROFILER(Release);
 		// only allow delete of the pointer in case there is 
 		// only one instance of object in each of:
 		if( RefCount( uniqueId ) == 0 )
@@ -464,11 +397,7 @@ public:
 			{
 				if( mEntityComponentArray[ entityId ][ i ]->mUniqueId == uniqueId )
 				{
-#if defined STL_TYPE
 					mEntityComponentArray[ entityId ].erase( mEntityComponentArray[ entityId ].begin() + i );
-#else
-					mEntityComponentArray[ entityId ].erase( i );
-#endif
 					break;
 				}
 			}
@@ -478,21 +407,12 @@ public:
 			{
 				if( mFamilyComponentMap[ familyId ][ i ]->mUniqueId == uniqueId )
 				{
-#if defined STL_TYPE
 					mFamilyComponentMap[ familyId ].erase( mFamilyComponentMap[ familyId ].begin() + i );
-#else
-					mFamilyComponentMap[ familyId ].erase( i );
-#endif
 					break;
 				}
 			}
 			// clear but don't erase
-#if defined USE_SMART_POINTERS
 			mComponentArray[ uniqueId ].reset();
-#else
-			delete mComponentArray[ uniqueId ];
-			mComponentArray[ uniqueId ] = NULL;
-#endif
 			mErasedIds.push_back( uniqueId );
 			return true;
 		}
@@ -508,11 +428,7 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Reference count. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/16/2012. </remarks>
-	///
 	/// <param name="uniqueId">	Unique identifier. </param>
-	///
 	/// <returns>	Returns number of references of given object. </returns>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -523,22 +439,14 @@ public:
 		{
 			if( mComponentArray[ uniqueId ] )
 				// -3 because of 3 map arrays of storing data for access
-#if defined USE_SMART_POINTERS
-					return mComponentArray[ uniqueId ].use_count()-3;
-#else
-					return 1;
-#endif
+				return mComponentArray[ uniqueId ].use_count()-3;
 		}
 		return 0;
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Gets a component based on its uniqueID. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/17/2012. </remarks>
-	///
 	/// <param name="unqiueId">	Unqiue identifier for the component. </param>
-	///
 	/// <returns>	The component. </returns>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -552,52 +460,36 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Gets a component list based on entityId. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/17/2012. </remarks>
-	///
 	/// <param name="entityId">		 	Unqiue identifier for the entity. </param>
 	/// <param name="componentsList">	[out] List of components. </param>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	void GetComponentsByEntity( IN entity_t entityId, OUT component_vector& componentsList )
 	{
-		API_PROFILER(GetComponentsByEntity);
 		componentsList = mEntityComponentArray[ entityId ];
 	}
 
 	void AppendComponentsByEntity( IN entity_t entityId, OUT component_vector& componentsList )
 	{
-		API_PROFILER(AppendComponentsByEntity);
-#if defined STL_TYPE
 		if( entityId >= mEntityComponentArray.size() )
 			mEntityComponentArray.resize( entityId + 1 );
 
 		componentsList.insert( componentsList.end(), mEntityComponentArray[ entityId ].begin(), mEntityComponentArray[ entityId ].end() );
-#else
-		componentsList.append( mEntityComponentMap[ entityId ] );
-#endif
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Gets a component list based on components family id. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/17/2012. </remarks>
-	///
 	/// <param name="familyId">		 	Unqiue identifier for the family. </param>
 	/// <param name="componentsList">	[out] List of components. </param>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	void GetComponentsByFamily( IN family_t familyId, OUT component_vector& componentsList )
 	{
-		API_PROFILER(GetComponentsByFamily);
 		componentsList = mFamilyComponentMap[ familyId ];
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Appends component list based on components family and entity id. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/17/2012. </remarks>
-	///
 	/// <param name="entityId">		 	Unqiue identifier for the entity. </param>
 	/// <param name="familyId">		 	Unqiue identifier for the family. </param>
 	/// <param name="componentsList">	[out] List of components. </param>
@@ -605,7 +497,6 @@ public:
 
 	void GetComponentsByEntityAndFamily( IN entity_t entityId, IN family_t familyId, OUT component_vector& componentsList )
 	{
-		API_PROFILER(GetComponentsByEntityAndFamily);
 		for( entity_t i =0; i< mEntityComponentArray[entityId].size(); i++ )
 			if( mEntityComponentArray[ entityId ][i]->mFamilyId == familyId )
 				componentsList.push_back( mEntityComponentArray[ entityId ][i] );
@@ -616,8 +507,6 @@ public:
 	/// 	Appends component list based on components family and entity id from external container.
 	/// </summary>
 	///
-	/// <remarks>	Isidor Hodi, 12/17/2012. </remarks>
-	///
 	/// <param name="container">	 	[in] The container. </param>
 	/// <param name="entityId">		 	Unqiue identifier for the entity. </param>
 	/// <param name="familyId">		 	Unqiue identifier for the family. </param>
@@ -626,7 +515,6 @@ public:
 
 	void GetComponentsByEntityAndFamily( std::vector<component_vector>& container, IN entity_t entityId, IN family_t familyId, OUT component_vector& componentsList )
 	{
-		API_PROFILER(GetComponentsByEntityAndFamily2);
 
 		for( entity_t i =0; i<container[entityId].size(); i++ )
 			if( container[ entityId ][i]->mFamilyId == familyId )
@@ -636,8 +524,6 @@ public:
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Gets components by family and entity. </summary>
 	///
-	/// <remarks>	Isidor Hodi, 9/24/2013. </remarks>
-	///
 	/// <param name="entityId">		 	Identifier for the entity. </param>
 	/// <param name="familyId">		 	Identifier for the family. </param>
 	/// <param name="componentsList">	[in,out] List of components. </param>
@@ -645,7 +531,6 @@ public:
 
 	void GetComponentsByFamilyAndEntity( IN entity_t entityId, IN family_t familyId, OUT component_vector& componentsList )
 	{
-		API_PROFILER(GetComponentsByFamilyAndEntity);
 		for( family_t i =0; i< mFamilyComponentMap[familyId].size(); i++ )
 			if( mFamilyComponentMap[ familyId ][i]->mEntityId == entityId )
 				componentsList.push_back( mFamilyComponentMap[ familyId ][i] );
@@ -653,8 +538,6 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Searches for the first component by entity and family. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/22/2012. </remarks>
 	///
 	/// <param name="entityId">	Identifier for the entity. </param>
 	/// <param name="familyId">	Identifier for the family. </param>
@@ -664,8 +547,6 @@ public:
 
 	ComponentPtr FindFirstComponentByEntityAndFamily( IN entity_t entityId, IN family_t familyId )
 	{
-		API_PROFILER(FindFirstComponentByEntityAndFamily);
-
 		if( entityId < mEntityComponentArray.size() )
 		{
 			for( entity_t i =0; i< mEntityComponentArray[entityId].size(); i++ )
@@ -682,8 +563,6 @@ public:
 
 	ComponentPtr FindFirstComponentByFamily( IN family_t familyId )
 	{
-		API_PROFILER(FindFirstComponentByEntityAndFamily);
-
 		if( mFamilyComponentMap[familyId].size() ) {
 			return mFamilyComponentMap[ familyId ][0];
 		}
@@ -693,8 +572,6 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Clears this object to its blank/initial state. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/22/2012. </remarks>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	void Clear() {
@@ -704,15 +581,9 @@ public:
 		mEntityComponentArray.clear();
 		mFamilyComponentMap.clear();
 
-		/// <summary>	The dummy component. Used for return values. Similar to smart NULL. </summary>
+		/// <summary>	The dummy component. Used for return values. </summary>
 		mComponentArray.push_back( ComponentPtr() );
-#if defined USE_SMART_POINTERS
 		mComponentArray[0].reset();
-#else
-		delete mComponentArray[0];
-		mComponentArray[0] = NULL;
-#endif
-
 		entitySystem.Clear();
 	}
 
@@ -722,8 +593,6 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Gets a first component by its type. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/28/2012. </remarks>
 	///
 	/// <typeparam name="typename Type">	Type of the typename type. </typeparam>
 	/// <param name="entityId">	Identifier for the entity. </param>
@@ -743,9 +612,7 @@ public:
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
-	/// <summary>	Rebuild erased i ds. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 1/17/2013. </remarks>
+	/// <summary>	Rebuild erased ids. </summary>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	void RebuildErasedIDs() {
@@ -759,9 +626,6 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Gets the size of components. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/30/2012. </remarks>
-	///
 	/// <returns>	. </returns>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -779,8 +643,6 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Count components by entity and family. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 2/4/2013. </remarks>
 	///
 	/// <param name="entityId">	Identifier for the entity. </param>
 	/// <param name="familyId">	Identifier for the family. </param>
@@ -810,11 +672,7 @@ public:
 			for( size_t i = 0; i<mFamilyComponentMap[ componentFamily ].size(); i++ ){
 				if( mFamilyComponentMap[ componentFamily ][i]->mUniqueId == uniqueId ) {
 
-#if defined STL_TYPE
 					mFamilyComponentMap[ componentFamily ].erase(mFamilyComponentMap[ componentFamily ].begin() + i);
-#else
-					mFamilyComponentMap[ componentFamily ].erase(i);
-#endif
 					erased = true;
 					break;
 				}
@@ -827,11 +685,7 @@ public:
 
 			for( size_t i = 0; i<mEntityComponentArray[ entityType ].size(); i++ ){
 				if( mEntityComponentArray[ entityType ][i]->mUniqueId == uniqueId ) {
-#if defined STL_TYPE
 					mEntityComponentArray[ entityType ].erase(mEntityComponentArray[ entityType ].begin() + i);
-#else
-					mEntityComponentArray[ entityType ].erase(i);
-#endif
 					erased = true;
 					break;
 				}
@@ -839,12 +693,7 @@ public:
 
 			if( !erased )
 				return false;
-#if defined USE_SMART_POINTERS
 			mComponentArray[ componentId ].reset();
-#else
-			delete mComponentArray[ componentId ];
-			mComponentArray[ componentId ] = NULL;
-#endif
 			// if last component doesn't need to be put under erased ID's
 			if( componentId == mComponentArray.size()-1 )
 				mComponentArray.pop_back();
@@ -855,8 +704,6 @@ public:
 	}
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Deletes the given entity based on entityId. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/31/2012. </remarks>
 	///
 	/// <param name="entityId">	The entity identifier to delete. </param>
 	///
@@ -880,11 +727,7 @@ public:
 
 				for( size_t i = 0; i<mFamilyComponentMap[ componentFamily ].size(); i++ ){
 					if( mFamilyComponentMap[ componentFamily ][i]->mUniqueId == uniqueId ) {
-#if defined STL_TYPE
 						mFamilyComponentMap[ componentFamily ].erase(mFamilyComponentMap[ componentFamily ].begin()+i);
-#else
-						mFamilyComponentMap[ componentFamily ].erase(i);
-#endif
 					}
 				}
 
@@ -895,12 +738,7 @@ public:
 			mEntityComponentArray[entityId].clear();
 
 			for( entity_t i = 0; i< components.size(); i++ ) {
-#if defined USE_SMART_POINTERS
 				mComponentArray[ components[i]->mUniqueId ].reset();
-#else
-				delete mComponentArray[ components[i]->mUniqueId ];
-				mComponentArray[ components[i]->mUniqueId ] = NULL;
-#endif
 			}
 
 			// check if last items are erased, if so, reduce array size
@@ -947,8 +785,6 @@ protected:
 public:
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Dumps components attached to this object. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/17/2012. </remarks>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef _DEBUG
 	void Dump() {
@@ -970,9 +806,6 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Dumps an entity based on entity id. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/20/2012. </remarks>
-	///
 	/// <param name="entityId">	Identifier for the entity. </param>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -986,9 +819,6 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Dumps a component based on components unique id. </summary>
-	///
-	/// <remarks>	Isidor Hodi, 12/20/2012. </remarks>
-	///
 	/// <param name="uniqueId">	Unique identifier. </param>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
