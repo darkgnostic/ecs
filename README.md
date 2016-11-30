@@ -1,3 +1,3 @@
 # Entity Component System
 
-Entity Component System used in game Dungoens of Everchange.
+Entity Component System used in game Dungeons of Everchange.
