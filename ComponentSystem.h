@@ -298,17 +298,17 @@ public:
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	/// <summary>	Attach array of components. </summary>
 	/// <param name="componentArray">	Array of components. </param>
-	/// <returns>	true if it succeeds, false if it fails. </returns>
+	/// <returns>	return self. </returns>
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	bool AttachArray( IN component_vector& componentArray )
+	ComponentSystem* AttachArray( IN component_vector& componentArray )
 	{
 		for( size_t i = 0;i <componentArray.size(); i++ ) {
 
 			AttachComponent( componentArray[i]);
 		}
 
-		return true;
+		return this;
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
